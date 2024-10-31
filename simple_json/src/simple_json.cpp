@@ -13,13 +13,67 @@ std::shared_ptr<JsonNode> Decoder::decode(const std::string &input) {
     // Copy input string to json buffer
     json.assign(input.begin(), input.end());
 
-    // Create root node
+    // Implement actual parsing logic here
+    switch (json[cursor]) {
+        case 'n':
+            return decodeLiteral("null");
+        case 't':
+            return decodeLiteral("true");
+        case 'f':
+            return decodeLiteral("false");
+        case '[':
+            return decodeArray();
+        case '{':
+            return decodeObject();
+        case '"':
+            return decodeString();
+        default:
+            return decodeNumber();
+    }
+}
+
+std::shared_ptr<JsonNode> Decoder::decodeLiteral(const std::string &literal) {
+    if (literal != +Literal::Null && literal != +Literal::True && literal != +Literal::False) {
+        throw std::invalid_argument("literal does not match");
+    }
     auto root = std::make_shared<JsonNode>();
+    for (const char i: literal) {
+        if (!hasNext()) {
+            throw std::invalid_argument("No more data");
+        }
+        if (this->ch() != i) {
+            throw std::invalid_argument("No more data");
+        }
+        this->cursor++;
+    }
 
-    // TODO: Implement actual parsing logic here
-    // This will be implemented in subsequent steps
-    // For now, just return an empty node
+    if (literal == +Literal::Null) {
+        root->setNull();
+    } else if (literal == +Literal::True) {
+        root->setBool(true);
+    } else if (literal == +Literal::False) {
+        root->setBool(false);
+    }
+    return root;
+}
 
+std::shared_ptr<JsonNode> Decoder::decodeNumber() {
+    auto root = std::make_shared<JsonNode>();
+    return root;
+}
+
+std::shared_ptr<JsonNode> Decoder::decodeString() {
+    auto root = std::make_shared<JsonNode>();
+    return root;
+}
+
+std::shared_ptr<JsonNode> Decoder::decodeArray() {
+    auto root = std::make_shared<JsonNode>();
+    return root;
+}
+
+std::shared_ptr<JsonNode> Decoder::decodeObject() {
+    auto root = std::make_shared<JsonNode>();
     return root;
 }
 
@@ -27,6 +81,12 @@ std::shared_ptr<JsonNode> Decoder::decode(const std::string &input) {
 std::shared_ptr<JsonNode> Decoder::parse(const std::string &input) {
     Decoder decoder;
     return decoder.decode(input);
+}
+
+std::string Encoder::encode(const std::shared_ptr<JsonNode> &node) {
+    // TODO: Implement string encoding
+    // Should handle escape sequences and special characters
+    return "";
 }
 
 std::string Encoder::encodeString(const std::string &s) {

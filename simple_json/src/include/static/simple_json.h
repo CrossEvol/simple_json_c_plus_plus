@@ -9,6 +9,7 @@
 #include <memory>
 #include <variant>
 #include <map>
+#include <stdexcept>
 
 class JsonNode;
 
@@ -30,12 +31,39 @@ private:
 
 public:
     Decoder() = default;
+
     ~Decoder() = default;
 
-    std::shared_ptr<JsonNode> decode(const std::string& input);
+    // property getters
+    std::size_t size() const {
+        return json.size();
+    }
+
+    bool hasNext() const {
+        return cursor < json.size();
+    }
+
+    char ch() const {
+        if (!hasNext()) {
+            throw std::runtime_error("No more data");
+        }
+        return json[cursor];
+    }
+
+    std::shared_ptr<JsonNode> decode(const std::string &input);
+
+    std::shared_ptr<JsonNode> decodeLiteral(const std::string &literal);
+
+    std::shared_ptr<JsonNode> decodeNumber();
+
+    std::shared_ptr<JsonNode> decodeString();
+
+    std::shared_ptr<JsonNode> decodeArray();
+
+    std::shared_ptr<JsonNode> decodeObject();
 
     // Optional: Add a convenience static method
-    static  std::shared_ptr<JsonNode> parse(const std::string& input);
+    static std::shared_ptr<JsonNode> parse(const std::string &input);
 };
 
 enum class ParseException {
@@ -54,57 +82,70 @@ enum class ParseException {
     PARSE_MISS_COMMA_OR_CURLY_BRACKET
 };
 
-using ArrayNode = std::vector<std::shared_ptr<JsonNode>>;
-using ObjectNode = std::map<std::string, std::shared_ptr<JsonNode>>;
+using ArrayNode = std::vector<std::shared_ptr<JsonNode> >;
+using ObjectNode = std::map<std::string, std::shared_ptr<JsonNode> >;
 
 class JsonNode {
 private:
     NodeType type;
     std::variant<
-        std::monostate,          // for null
-        bool,                    // for true/false
-        double,                  // for numbers
-        std::string,             // for strings
-        std::shared_ptr<ArrayNode>,  // for arrays
-        std::shared_ptr<ObjectNode>  // for objects
+        std::monostate, // for null
+        bool, // for true/false
+        double, // for numbers
+        std::string, // for strings
+        std::shared_ptr<ArrayNode>, // for arrays
+        std::shared_ptr<ObjectNode> // for objects
     > value;
 
 public:
     // Default constructor - creates null node
-    JsonNode() : type(NodeType::Null), value(std::monostate{}) {}
-    
+    JsonNode() : type(NodeType::Null), value(std::monostate{}) {
+    }
+
     // Value constructors
-    explicit JsonNode(bool b) : type(b ? NodeType::True : NodeType::False), value(b) {}
-    explicit JsonNode(double d) : type(NodeType::Number), value(d) {}
-    explicit JsonNode(const std::string& s) : type(NodeType::String), value(s) {}
-    explicit JsonNode(std::string&& s) : type(NodeType::String), value(std::move(s)) {}
-    
+    explicit JsonNode(bool b) : type(b ? NodeType::True : NodeType::False), value(b) {
+    }
+
+    explicit JsonNode(double d) : type(NodeType::Number), value(d) {
+    }
+
+    explicit JsonNode(const std::string &s) : type(NodeType::String), value(s) {
+    }
+
+    explicit JsonNode(std::string &&s) : type(NodeType::String), value(std::move(s)) {
+    }
+
     // Array constructor
-    explicit JsonNode(ArrayNode&& arr) 
+    explicit JsonNode(ArrayNode &&arr)
         : type(NodeType::Array)
-        , value(std::make_shared<ArrayNode>(std::move(arr))) {}
-    
+          , value(std::make_shared<ArrayNode>(std::move(arr))) {
+    }
+
     // Object constructor
-    explicit JsonNode(ObjectNode&& obj)
+    explicit JsonNode(ObjectNode &&obj)
         : type(NodeType::Object)
-        , value(std::make_shared<ObjectNode>(std::move(obj))) {}
-    
+          , value(std::make_shared<ObjectNode>(std::move(obj))) {
+    }
+
     // Getter for type
     NodeType getType() const { return type; }
-    
+
     // Value getters
     bool getBool() const { return std::get<bool>(value); }
     double getNumber() const { return std::get<double>(value); }
-    const std::string& getString() const { return std::get<std::string>(value); }
-    const std::shared_ptr<ArrayNode>& getArray() const { return std::get<std::shared_ptr<ArrayNode>>(value); }
-    const std::shared_ptr<ObjectNode>& getObject() const { return std::get<std::shared_ptr<ObjectNode>>(value); }
-    
+    const std::string &getString() const { return std::get<std::string>(value); }
+    const std::shared_ptr<ArrayNode> &getArray() const { return std::get<std::shared_ptr<ArrayNode> >(value); }
+    const std::shared_ptr<ObjectNode> &getObject() const { return std::get<std::shared_ptr<ObjectNode> >(value); }
+
     // Copy and move operations
-    JsonNode(const JsonNode&) = default;
-    JsonNode& operator=(const JsonNode&) = default;
-    JsonNode(JsonNode&&) noexcept = default;
-    JsonNode& operator=(JsonNode&&) noexcept = default;
-    
+    JsonNode(const JsonNode &) = default;
+
+    JsonNode &operator=(const JsonNode &) = default;
+
+    JsonNode(JsonNode &&) noexcept = default;
+
+    JsonNode &operator=(JsonNode &&) noexcept = default;
+
     ~JsonNode() = default;
 
     // Value setters
@@ -123,22 +164,22 @@ public:
         value = d;
     }
 
-    void setString(const std::string& s) {
+    void setString(const std::string &s) {
         type = NodeType::String;
         value = s;
     }
 
-    void setString(std::string&& s) {
+    void setString(std::string &&s) {
         type = NodeType::String;
         value = std::move(s);
     }
 
-    void setArray(ArrayNode&& arr) {
+    void setArray(ArrayNode &&arr) {
         type = NodeType::Array;
         value = std::make_shared<ArrayNode>(std::move(arr));
     }
 
-    void setObject(ObjectNode&& obj) {
+    void setObject(ObjectNode &&obj) {
         type = NodeType::Object;
         value = std::make_shared<ObjectNode>(std::move(obj));
     }
@@ -149,36 +190,52 @@ public:
             type = NodeType::Array;
             value = std::make_shared<ArrayNode>();
         }
-        std::get<std::shared_ptr<ArrayNode>>(value)->push_back(std::move(element));
+        std::get<std::shared_ptr<ArrayNode> >(value)->push_back(std::move(element));
     }
 
-    void addObjectMember(const std::string& key, std::shared_ptr<JsonNode> element) {
+    void addObjectMember(const std::string &key, std::shared_ptr<JsonNode> element) {
         if (type != NodeType::Object) {
             type = NodeType::Object;
             value = std::make_shared<ObjectNode>();
         }
-        std::get<std::shared_ptr<ObjectNode>>(value)->insert_or_assign(key, std::move(element));
+        std::get<std::shared_ptr<ObjectNode> >(value)->insert_or_assign(key, std::move(element));
     }
 };
 
 class Encoder {
 public:
     Encoder() = default;
+
     ~Encoder() = default;
 
-    std::string encode(const std::shared_ptr<JsonNode>& node);
+    std::string encode(const std::shared_ptr<JsonNode> &node);
 
 private:
-    std::string encodeString(const std::string& s);
+    std::string encodeString(const std::string &s);
 
-    std::string encodeArray(const std::shared_ptr<ArrayNode>& arr);
+    std::string encodeArray(const std::shared_ptr<ArrayNode> &arr);
 
-    std::string encodeObject(const std::shared_ptr<ObjectNode>& obj);
+    std::string encodeObject(const std::shared_ptr<ObjectNode> &obj);
 
     // Optional: Add a convenience static method
-    static std::string stringify(const std::shared_ptr<JsonNode>& node);
+    static std::string stringify(const std::shared_ptr<JsonNode> &node);
 };
 
+enum class Literal {
+    Null,
+    True,
+    False,
+};
+
+// Overload operator+ to convert Literal to string
+inline std::string operator+(const Literal &literal) {
+    switch (literal) {
+        case Literal::Null: return "null";
+        case Literal::True: return "true";
+        case Literal::False: return "false";
+        default: throw std::runtime_error("Unknown literal");
+    }
+}
 
 
 #endif //SIMPLE_JSON_H
