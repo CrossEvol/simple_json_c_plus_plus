@@ -28,43 +28,7 @@ FetchContent_Declare(
 # Make the libraries available
 FetchContent_MakeAvailable(fmt Catch2)
 
-############################################################
-# Create a library
-############################################################
+# Add sub directories
+add_subdirectory(simple_json)
+add_subdirectory(example)
 
-add_library(hello_library STATIC
-        "src/hello.cpp"
-)
-add_library(hello::library ALIAS hello_library)
-
-target_include_directories(hello_library
-        PUBLIC
-        ${PROJECT_SOURCE_DIR}/include
-)
-
-target_link_libraries(hello_library PRIVATE fmt::fmt)
-
-############################################################
-# Create Main executable
-############################################################
-
-add_executable(start_up 
-    src/main.cpp
-)
-
-# Link libraries to main executable
-target_link_libraries(start_up PRIVATE hello::library)
-
-############################################################
-# Create Test executable
-############################################################
-
-add_executable(unit_tests
-    test/unit_tests.cpp
-)
-
-# Link libraries to test executable
-target_link_libraries(unit_tests PRIVATE 
-    hello::library
-    Catch2::Catch2WithMain
-)
