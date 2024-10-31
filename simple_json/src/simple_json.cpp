@@ -39,10 +39,10 @@ std::shared_ptr<JsonNode> Decoder::decodeLiteral(const std::string &literal) {
     auto root = std::make_shared<JsonNode>();
     for (const char i: literal) {
         if (!hasNext()) {
-            throw std::invalid_argument("No more data");
+            throw OutOfRangeException();
         }
         if (this->ch() != i) {
-            throw std::invalid_argument("No more data");
+            throwParseException(ParseException::PARSE_INVALID_VALUE);
         }
         this->cursor++;
     }

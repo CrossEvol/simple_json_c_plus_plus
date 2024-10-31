@@ -9,30 +9,17 @@
 #include <memory>
 #include <variant>
 #include <map>
-#include <stdexcept>
+#include "constant.h"
+#include "exception.h"
+#include "helper.h"
 
 class JsonNode;
-
-enum class NodeType {
-    Null,
-    False,
-    True,
-    Number,
-    String,
-    Array,
-    Object,
-};
 
 class Decoder {
 private:
     std::vector<char> json;
     std::vector<char> stack;
     int cursor = 0;
-
-public:
-    Decoder() = default;
-
-    ~Decoder() = default;
 
     // property getters
     std::size_t size() const {
@@ -45,12 +32,10 @@ public:
 
     char ch() const {
         if (!hasNext()) {
-            throw std::runtime_error("No more data");
+            throw OutOfRangeException();
         }
         return json[cursor];
     }
-
-    std::shared_ptr<JsonNode> decode(const std::string &input);
 
     std::shared_ptr<JsonNode> decodeLiteral(const std::string &literal);
 
@@ -62,25 +47,17 @@ public:
 
     std::shared_ptr<JsonNode> decodeObject();
 
+public:
+    Decoder() = default;
+
+    ~Decoder() = default;
+
+    std::shared_ptr<JsonNode> decode(const std::string &input);
+
     // Optional: Add a convenience static method
     static std::shared_ptr<JsonNode> parse(const std::string &input);
 };
 
-enum class ParseException {
-    PARSE_EXPECT_VALUE,
-    PARSE_INVALID_VALUE,
-    PARSE_ROOT_NOT_SINGULAR,
-    PARSE_NUMBER_TOO_BIG,
-    PARSE_MISS_QUOTATION_MARK,
-    PARSE_INVALID_STRING_ESCAPE,
-    PARSE_INVALID_STRING_CHAR,
-    PARSE_INVALID_UNICODE_HEX,
-    PARSE_INVALID_UNICODE_SURROGATE,
-    PARSE_MISS_COMMA_OR_SQUARE_BRACKET,
-    PARSE_MISS_KEY,
-    PARSE_MISS_COLON,
-    PARSE_MISS_COMMA_OR_CURLY_BRACKET
-};
 
 using ArrayNode = std::vector<std::shared_ptr<JsonNode> >;
 using ObjectNode = std::map<std::string, std::shared_ptr<JsonNode> >;
@@ -210,6 +187,9 @@ public:
 
     std::string encode(const std::shared_ptr<JsonNode> &node);
 
+    // Optional: Add a convenience static method
+    static std::string stringify(const std::shared_ptr<JsonNode> &node);
+
 private:
     std::string encodeString(const std::string &s);
 
@@ -217,25 +197,7 @@ private:
 
     std::string encodeObject(const std::shared_ptr<ObjectNode> &obj);
 
-    // Optional: Add a convenience static method
-    static std::string stringify(const std::shared_ptr<JsonNode> &node);
 };
-
-enum class Literal {
-    Null,
-    True,
-    False,
-};
-
-// Overload operator+ to convert Literal to string
-inline std::string operator+(const Literal &literal) {
-    switch (literal) {
-        case Literal::Null: return "null";
-        case Literal::True: return "true";
-        case Literal::False: return "false";
-        default: throw std::runtime_error("Unknown literal");
-    }
-}
 
 
 #endif //SIMPLE_JSON_H
