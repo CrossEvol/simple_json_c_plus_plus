@@ -5,35 +5,36 @@ project(simple_json)
 # Create a library
 ############################################################
 
-add_library(hello_library STATIC
-        "${PROJECT_SOURCE_DIR}/src/hello.cpp"
+add_library(${PROJECT_NAME}
+        STATIC
+        src/simple_json.cpp
 )
-add_library(hello::library ALIAS hello_library)
 
-target_include_directories(hello_library
+target_include_directories(${PROJECT_NAME}
         PUBLIC
-        ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/src/include
 )
 
-target_link_libraries(hello_library PRIVATE fmt::fmt)
-
-############################################################
-# Create a library
-############################################################
-add_library(${PROJECT_NAME} src/simple_json.cpp)
-target_link_directories(${PROJECT_NAME} PRIVATE hello::library)
+target_link_directories(${PROJECT_NAME} PRIVATE fmt::fmt)
 
 
 ############################################################
 # Create Test executable
 ############################################################
 
-add_executable(simple_json_tests
+set(TEST_SOURCES
         ${PROJECT_SOURCE_DIR}/test/simple_json_tests.cpp
+        ${PROJECT_SOURCE_DIR}/test/parse_literal_test.cpp
+        ${PROJECT_SOURCE_DIR}/test/parse_number_test.cpp
+        ${PROJECT_SOURCE_DIR}/test/parse_array_test.cpp
+        ${PROJECT_SOURCE_DIR}/test/parse_object_test.cpp
+        ${PROJECT_SOURCE_DIR}/test/parse_exception_test.cpp
 )
+
+add_executable(simple_json_tests ${TEST_SOURCES})
 
 # Link libraries to test executable
 target_link_libraries(simple_json_tests PRIVATE
-        hello::library
+        simple_json
         Catch2::Catch2WithMain
 )
