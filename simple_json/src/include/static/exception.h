@@ -87,7 +87,7 @@ public:
 };
 
 // Helper function to throw the appropriate exception based on ParseException enum
-inline void throwParseException(ParseException e) {
+inline void throwParseException(const ParseException e) {
     switch (e) {
         case ParseException::PARSE_EXPECT_VALUE:
             throw ParseExpectValueException();

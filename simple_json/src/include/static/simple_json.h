@@ -37,7 +37,29 @@ private:
         return json[cursor];
     }
 
+    void resetStack() {
+        this->stack.clear();
+    }
+
+    void forward() {
+        this->putChar(this->ch());
+        this->cursor++;
+    }
+
+    void putChar(const char c) {
+        this->stack.push_back(c);
+    }
+
+    void trimWhiteSpace() {
+        while (this->hasNext()
+               && (this->ch() == ' ' || this->ch() == '\t' || this->ch() == '\n' || this->ch() == '\r')) {
+            this->cursor++;
+        }
+    }
+
     std::shared_ptr<JsonNode> decodeLiteral(const std::string &literal);
+
+    void validateNumber();
 
     std::shared_ptr<JsonNode> decodeNumber();
 
@@ -68,7 +90,7 @@ private:
     std::variant<
         std::monostate, // for null
         bool, // for true/false
-        double, // for numbers
+        long double, // for numbers
         std::string, // for strings
         std::shared_ptr<ArrayNode>, // for arrays
         std::shared_ptr<ObjectNode> // for objects
@@ -109,7 +131,7 @@ public:
 
     // Value getters
     bool getBool() const { return std::get<bool>(value); }
-    double getNumber() const { return std::get<double>(value); }
+    auto getNumber() const { return std::get<long double>(value); }
     const std::string &getString() const { return std::get<std::string>(value); }
     const std::shared_ptr<ArrayNode> &getArray() const { return std::get<std::shared_ptr<ArrayNode> >(value); }
     const std::shared_ptr<ObjectNode> &getObject() const { return std::get<std::shared_ptr<ObjectNode> >(value); }
@@ -136,7 +158,7 @@ public:
         value = b;
     }
 
-    void setNumber(double d) {
+    void setNumber(long double d) {
         type = NodeType::Number;
         value = d;
     }
@@ -196,7 +218,6 @@ private:
     std::string encodeArray(const std::shared_ptr<ArrayNode> &arr);
 
     std::string encodeObject(const std::shared_ptr<ObjectNode> &obj);
-
 };
 
 

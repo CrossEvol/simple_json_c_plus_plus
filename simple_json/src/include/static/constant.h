@@ -18,6 +18,7 @@ enum class NodeType {
 
 enum class NumberState {
     BEGIN,
+    NEGATIVE,
     ZERO,
     DIGIT,
     DIGIT_1_TO_9,
