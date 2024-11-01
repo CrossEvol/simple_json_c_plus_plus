@@ -46,6 +46,10 @@ private:
         this->cursor++;
     }
 
+    void skip() {
+        this->cursor++;
+    }
+
     void putChar(const char c) {
         this->stack.push_back(c);
     }
@@ -61,9 +65,15 @@ private:
 
     void validateNumber();
 
+    std::shared_ptr<JsonNode> decode();
+
     std::shared_ptr<JsonNode> decodeNumber();
 
     std::shared_ptr<JsonNode> decodeString();
+
+    void decodeUnicodeString();
+
+    void encodeUTF8(uint32_t u);
 
     std::shared_ptr<JsonNode> decodeArray();
 

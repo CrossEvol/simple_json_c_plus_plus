@@ -34,3 +34,4 @@
 # IDE
 cmake-build-debug-mingw
 .vscode
+.vs

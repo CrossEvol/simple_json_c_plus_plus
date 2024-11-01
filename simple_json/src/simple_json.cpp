@@ -6,17 +6,9 @@
 #include <static/simple_json.h>
 #include "static/helper.h"
 
-std::shared_ptr<JsonNode> Decoder::decode(const std::string &input) {
-    // Clear any existing state
-    json.clear();
-    stack.clear();
-    cursor = 0;
-
-    // Copy input string to json buffer
-    json.assign(input.begin(), input.end());
-
+std::shared_ptr<JsonNode> Decoder::decode() {
     // Implement actual parsing logic here
-    switch (json[cursor]) {
+    switch (this->ch()) {
         case 'n':
             return decodeLiteral("null");
         case 't':
@@ -32,6 +24,24 @@ std::shared_ptr<JsonNode> Decoder::decode(const std::string &input) {
         default:
             return decodeNumber();
     }
+}
+
+std::shared_ptr<JsonNode> Decoder::decode(const std::string &input) {
+    // Clear any existing state
+    this->json.clear();
+    this->stack.clear();
+    this->cursor = 0;
+
+    // Copy input string to json buffer
+    this->json.assign(input.begin(), input.end());
+    this->trimWhiteSpace();
+
+    auto node = decode();
+    this->trimWhiteSpace();
+    if (this->hasNext()) {
+        throwParseException(ParseException::PARSE_ROOT_NOT_SINGULAR);
+    }
+    return node;
 }
 
 std::shared_ptr<JsonNode> Decoder::decodeLiteral(const std::string &literal) {
@@ -177,8 +187,152 @@ std::shared_ptr<JsonNode> Decoder::decodeNumber() {
 }
 
 std::shared_ptr<JsonNode> Decoder::decodeString() {
-    auto root = std::make_shared<JsonNode>();
-    return root;
+    auto node = std::make_shared<JsonNode>();
+
+    if (this->ch() != '"') {
+        throwParseException(ParseException::PARSE_MISS_QUOTATION_MARK);
+    }
+    this->skip();
+
+    this->resetStack();
+
+    for (;;) {
+        if (!this->hasNext()) {
+            throwParseException(ParseException::PARSE_MISS_QUOTATION_MARK);
+        }
+        switch (this->ch()) {
+            case '"':
+                this->skip();
+                node->setString(std::string(this->stack.data(), this->stack.size()));
+                return node;
+            case '\\':
+                this->skip();
+                if (!this->hasNext()) {
+                    throwParseException(ParseException::PARSE_INVALID_STRING_ESCAPE);
+                }
+                switch (this->ch()) {
+                    case '"':
+                        this->forward();
+                        break;
+                    case '\\':
+                        this->forward();
+                        break;
+                    case '/':
+                        this->forward();
+                        break;
+                    case 'b':
+                        this->putChar('\b');
+                        this->skip();
+                        break;
+                    case 'f':
+                        this->putChar('\f');
+                        this->skip();
+                        break;
+                    case 'n':
+                        this->putChar('\n');
+                        this->skip();
+                        break;
+                    case 'r':
+                        this->putChar('\r');
+                        this->skip();
+                        break;
+                    case 't':
+                        this->putChar('\t');
+                        this->skip();
+                        break;
+                    case 'u':
+                        this->skip();
+                        this->decodeUnicodeString();
+                        break;
+                    default:
+                        throwParseException(ParseException::PARSE_INVALID_STRING_ESCAPE);
+                        this->skip();
+                }
+                break;
+            default:
+                if (this->ch() < 0x20) {
+                    throwParseException(ParseException::PARSE_INVALID_STRING_ESCAPE);
+                }
+                this->forward();
+        }
+    }
+    // throwParseException(ParseException::PARSE_INVALID_STRING_CHAR);
+}
+
+void Decoder::decodeUnicodeString() {
+    // Check if we have enough characters for the first unicode hex (4 digits)
+    if (this->cursor + 4 >= this->size()) {
+        throwParseException(ParseException::PARSE_INVALID_UNICODE_HEX);
+    }
+
+    // Parse first UTF-16 code unit
+    const std::string u1Str(json.begin() + cursor, json.begin() + cursor + 4);
+    uint16_t u1 = 0;
+    try {
+        u1 = static_cast<uint16_t>(std::stoul(u1Str, nullptr, 16));
+    } catch (...) {
+        throwParseException(ParseException::PARSE_INVALID_UNICODE_HEX);
+    }
+    cursor += 4; // Skip 'u' and 4 hex digits
+
+    // Handle surrogate pairs
+    if (u1 >= 0xD800 && u1 <= 0xDBFF) {
+        // Check if we have enough characters for surrogate pair
+        if (cursor + 6 >= json.size() ||
+            json[cursor] != '\\' ||
+            json[cursor + 1] != 'u') {
+            throwParseException(ParseException::PARSE_INVALID_UNICODE_SURROGATE);
+        }
+
+        // Parse second UTF-16 code unit
+        const std::string u2Str(json.begin() + cursor + 2, json.begin() + cursor + 6);
+        uint16_t u2 = 0;
+        try {
+            u2 = static_cast<uint16_t>(std::stoul(u2Str, nullptr, 16));
+        } catch (...) {
+            throwParseException(ParseException::PARSE_INVALID_UNICODE_HEX);
+        }
+
+        if (u2 < 0xDC00 || u2 > 0xDFFF) {
+            throwParseException(ParseException::PARSE_INVALID_UNICODE_SURROGATE);
+        }
+
+        // Combine surrogate pair into single Unicode code point
+        const uint32_t u = ((static_cast<uint32_t>(u1) - 0xD800) << 10 |
+                            (static_cast<uint32_t>(u2) - 0xDC00)) + 0x10000;
+
+        // Encode as UTF-8
+        this->encodeUTF8(u);
+        cursor += 6;
+    } else {
+        // Encode single Unicode character
+        this->encodeUTF8(u1);
+    }
+}
+
+// Helper method to encode Unicode code points as UTF-8
+void Decoder::encodeUTF8(const uint32_t u) {
+    if (u <= 0x7F) {
+        // 1-byte sequence
+        this->stack.push_back(static_cast<char>(u & 0xFF));
+    } else if (u <= 0x7FF) {
+        // 2-byte sequence
+        this->stack.push_back(static_cast<char>(0xC0 | ((u >> 6) & 0xFF)));
+        this->stack.push_back(static_cast<char>(0x80 | (u & 0x3F)));
+    } else if (u <= 0xFFFF) {
+        // 3-byte sequence
+        this->stack.push_back(static_cast<char>(0xE0 | ((u >> 12) & 0xFF)));
+        this->stack.push_back(static_cast<char>(0x80 | ((u >> 6) & 0x3F)));
+        this->stack.push_back(static_cast<char>(0x80 | (u & 0x3F)));
+    } else if (u <= 0x10FFFF) {
+        // 4-byte sequence
+        this->stack.push_back(static_cast<char>(0xF0 | ((u >> 18) & 0xFF)));
+        this->stack.push_back(static_cast<char>(0x80 | ((u >> 12) & 0x3F)));
+        this->stack.push_back(static_cast<char>(0x80 | ((u >> 6) & 0x3F)));
+        this->stack.push_back(static_cast<char>(0x80 | (u & 0x3F)));
+    } else {
+        throwParseException(ParseException::PARSE_INVALID_UNICODE_HEX);
+    }
 }
 
 std::shared_ptr<JsonNode> Decoder::decodeArray() {
