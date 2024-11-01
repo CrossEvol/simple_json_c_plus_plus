@@ -57,7 +57,7 @@ private:
     void trimWhiteSpace() {
         while (this->hasNext()
                && (this->ch() == ' ' || this->ch() == '\t' || this->ch() == '\n' || this->ch() == '\r')) {
-            this->cursor++;
+            this->skip();
         }
     }
 

@@ -113,6 +113,9 @@ void Decoder::validateNumber() {
                     state = NumberState::DOT;
                 } else if (this->ch() == 'e' || this->ch() == 'E') {
                     state = NumberState::EXPONENT;
+                } else if (isWhiteSpace(this->ch())) {
+                    // [ 0 ] or '0 x' , should return stack with '0'
+                    return;
                 } else {
                     throwParseException(ParseException::PARSE_INVALID_VALUE);
                 }
@@ -256,7 +259,6 @@ std::shared_ptr<JsonNode> Decoder::decodeString() {
                 this->forward();
         }
     }
-    // throwParseException(ParseException::PARSE_INVALID_STRING_CHAR);
 }
 
 void Decoder::decodeUnicodeString() {
@@ -336,8 +338,35 @@ void Decoder::encodeUTF8(const uint32_t u) {
 }
 
 std::shared_ptr<JsonNode> Decoder::decodeArray() {
-    auto root = std::make_shared<JsonNode>();
-    return root;
+    auto node = std::make_shared<JsonNode>();
+    if (this->ch() != '[') {
+        throwParseException(ParseException::PARSE_MISS_COMMA_OR_SQUARE_BRACKET);
+    }
+    this->skip();
+    this->trimWhiteSpace();
+    if (this->ch() == ']') {
+        this->skip();
+        ArrayNode array{};
+        node->setArray(std::move(array));
+        return node;
+    }
+    ArrayNode array{};
+    for (;;) {
+        if (auto subNode = this->decode(); subNode != nullptr) {
+            this->trimWhiteSpace();
+            array.push_back(subNode);
+        }
+        if (this->ch() == ',') {
+            this->skip();
+            this->trimWhiteSpace();
+        } else if (this->ch() == ']') {
+            this->skip();
+            node->setArray(std::move(array));
+            return node;
+        } else {
+            throwParseException(ParseException::PARSE_MISS_COMMA_OR_SQUARE_BRACKET);
+        }
+    }
 }
 
 std::shared_ptr<JsonNode> Decoder::decodeObject() {

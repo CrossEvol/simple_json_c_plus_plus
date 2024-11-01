@@ -13,4 +13,8 @@ inline bool isDigit1to9(const char ch) {
     return ch >= '1' && ch <= '9';
 }
 
+inline bool isWhiteSpace(const char ch) {
+    return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r';
+}
+
 #endif //HELPER_H
