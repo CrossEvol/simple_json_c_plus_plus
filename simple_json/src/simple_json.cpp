@@ -36,7 +36,7 @@ std::shared_ptr<JsonNode> Decoder::decode(const std::string &input) {
     this->json.assign(input.begin(), input.end());
     this->trimWhiteSpace();
 
-    auto node = decode();
+    auto node = this->decode();
     this->trimWhiteSpace();
     if (this->hasNext()) {
         throwParseException(ParseException::PARSE_ROOT_NOT_SINGULAR);
@@ -370,8 +370,55 @@ std::shared_ptr<JsonNode> Decoder::decodeArray() {
 }
 
 std::shared_ptr<JsonNode> Decoder::decodeObject() {
-    auto root = std::make_shared<JsonNode>();
-    return root;
+    auto node = std::make_shared<JsonNode>();
+
+    if (this->ch() != '{') {
+        throwParseException(ParseException::PARSE_MISS_COMMA_OR_CURLY_BRACKET);
+    }
+    this->skip();
+    this->trimWhiteSpace();
+
+    if (this->ch() == '}') {
+        this->skip();
+        ObjectNode object{};
+        node->setObject(std::move(object));
+        return node;
+    }
+
+    ObjectNode object{};
+    for (;;) {
+        if (this->ch() != '"') {
+            throwParseException(ParseException::PARSE_MISS_KEY);
+        }
+        auto keyNode = this->decodeString();
+        if (keyNode == nullptr) {
+            throwParseException(ParseException::PARSE_INVALID_VALUE);
+        }
+        this->trimWhiteSpace();
+        if (this->ch() != ':') {
+            throwParseException(ParseException::PARSE_MISS_COLON);
+        }
+        this->skip();
+        this->trimWhiteSpace();
+        auto valueNode = this->decode();
+        if (valueNode == nullptr) {
+            throwParseException(ParseException::PARSE_INVALID_VALUE);
+        }
+        object.emplace(keyNode->getString(), std::move(valueNode));
+        this->trimWhiteSpace();
+        if (this->ch() == ',') {
+            this->skip();
+            this->trimWhiteSpace();
+        } else if (this->ch() == '}') {
+            this->skip();
+            node->setObject(std::move(object));
+            return node;
+        } else {
+            throwParseException(ParseException::PARSE_MISS_COMMA_OR_CURLY_BRACKET);
+            break;
+        }
+    }
+    return node;
 }
 
 // Optional: Add a convenience static method
