@@ -7,6 +7,10 @@
 #include "static/helper.h"
 
 std::shared_ptr<JsonNode> Decoder::decode() {
+    this->trimWhiteSpace();
+    if (!this->hasNext()) {
+        throwParseException(ParseException::PARSE_EXPECT_VALUE);
+    }
     // Implement actual parsing logic here
     switch (this->ch()) {
         case 'n':
@@ -16,9 +20,17 @@ std::shared_ptr<JsonNode> Decoder::decode() {
         case 'f':
             return decodeLiteral("false");
         case '[':
-            return decodeArray();
+            try {
+                return decodeArray();
+            } catch (OutOfRangeException &e) {
+                throwParseException(ParseException::PARSE_MISS_COMMA_OR_SQUARE_BRACKET);
+            }
         case '{':
-            return decodeObject();
+            try {
+                return decodeObject();
+            } catch (OutOfRangeException &e) {
+                throwParseException(ParseException::PARSE_MISS_COMMA_OR_CURLY_BRACKET);
+            }
         case '"':
             return decodeString();
         default:
@@ -51,12 +63,12 @@ std::shared_ptr<JsonNode> Decoder::decodeLiteral(const std::string &literal) {
     auto root = std::make_shared<JsonNode>();
     for (const char i: literal) {
         if (!hasNext()) {
-            throw OutOfRangeException();
+            throwParseException(ParseException::PARSE_INVALID_VALUE);
         }
         if (this->ch() != i) {
             throwParseException(ParseException::PARSE_INVALID_VALUE);
         }
-        this->cursor++;
+        this->skip();
     }
 
     if (literal == +Literal::Null) {
@@ -71,14 +83,30 @@ std::shared_ptr<JsonNode> Decoder::decodeLiteral(const std::string &literal) {
 
 // Helper function to test string to double conversion
 auto parseLongDouble = [](const std::string &str) {
+    // Check for obviously too large exponents before conversion
+    if (str.find('e') != std::string::npos || str.find('E') != std::string::npos) {
+        auto e_pos = str.find('e') != std::string::npos ? str.find('e') : str.find('E');
+        auto exp_str = str.substr(e_pos + 1);
+        try {
+            auto exp = std::stoi(exp_str);
+            if (exp > 308) {
+                // DBL_MAX_10_EXP is typically 308
+                throwParseException(ParseException::PARSE_NUMBER_TOO_BIG);
+            }
+        } catch (ParseNumberTooBigException &pe) {
+            throw;
+        }
+        catch (...) {
+            throwParseException(ParseException::PARSE_INVALID_VALUE);
+        }
+    }
+
     try {
         return std::stold(str);
     } catch (const std::invalid_argument &e) {
-        std::cout << e.what() << std::endl;
         throwParseException(ParseException::PARSE_INVALID_VALUE);
     } catch (const std::out_of_range &e) {
-        std::cout << e.what() << std::endl;
-        throwParseException(ParseException::PARSE_NUMBER_TOO_BIG);
+        return static_cast<long double>(0.0);
     }
     return static_cast<long double>(0.0);
 };
@@ -101,6 +129,8 @@ void Decoder::validateNumber() {
                     state = NumberState::ZERO;
                 } else if (isDigit1to9(this->ch())) {
                     state = NumberState::DIGIT_1_TO_9;
+                } else {
+                    throwParseException(ParseException::PARSE_INVALID_VALUE);
                 }
                 break;
             case NumberState::NEGATIVE:
@@ -117,7 +147,7 @@ void Decoder::validateNumber() {
                     // [ 0 ] or '0 x' , should return stack with '0'
                     return;
                 } else {
-                    throwParseException(ParseException::PARSE_INVALID_VALUE);
+                    return;
                 }
                 break;
             case NumberState::DIGIT:
@@ -144,9 +174,14 @@ void Decoder::validateNumber() {
             case NumberState::DOT:
                 hasDot = true;
                 this->forward();
-                if (isDigit(this->ch())) {
-                    state = NumberState::DIGIT;
-                } else {
+            // TODO: Is there any other method to verify the json has ended not by checking the OutOfRangeException?
+                try {
+                    if (isDigit(this->ch())) {
+                        state = NumberState::DIGIT;
+                    } else {
+                        throwParseException(ParseException::PARSE_INVALID_VALUE);
+                    }
+                } catch (OutOfRangeException &e) {
                     throwParseException(ParseException::PARSE_INVALID_VALUE);
                 }
                 break;
@@ -178,9 +213,8 @@ void Decoder::validateNumber() {
 std::shared_ptr<JsonNode> Decoder::decodeNumber() {
     try {
         validateNumber();
-    } catch (OutOfRangeException e) {
+    } catch (OutOfRangeException &e) {
         // TODO: use OutOfRangeException as the end signal
-        // std::cout << e.what() << std::endl;
     }
     auto node = std::make_shared<JsonNode>();
     const std::string sv(this->stack.data(), this->stack.size());
@@ -254,46 +288,53 @@ std::shared_ptr<JsonNode> Decoder::decodeString() {
                 break;
             default:
                 if (this->ch() < 0x20) {
-                    throwParseException(ParseException::PARSE_INVALID_STRING_ESCAPE);
+                    throwParseException(ParseException::PARSE_INVALID_STRING_CHAR);
                 }
                 this->forward();
         }
     }
 }
 
-void Decoder::decodeUnicodeString() {
-    // Check if we have enough characters for the first unicode hex (4 digits)
-    if (this->cursor + 4 >= this->size()) {
-        throwParseException(ParseException::PARSE_INVALID_UNICODE_HEX);
+uint16_t Decoder::parseHex4() {
+    uint16_t u = 0;
+    for (int i = 0; i < 4; i++) {
+        if (!hasNext()) {
+            throwParseException(ParseException::PARSE_INVALID_UNICODE_HEX);
+        }
+        const char ch = this->ch();
+        u <<= 4;
+        if (ch >= '0' && ch <= '9') {
+            u |= ch - '0';
+        } else if (ch >= 'A' && ch <= 'F') {
+            u |= ch - ('A' - 10);
+        } else if (ch >= 'a' && ch <= 'f') {
+            u |= ch - ('a' - 10);
+        } else {
+            throwParseException(ParseException::PARSE_INVALID_UNICODE_HEX);
+        }
+        this->skip();
     }
+    return u;
+}
 
+void Decoder::decodeUnicodeString() {
     // Parse first UTF-16 code unit
-    const std::string u1Str(json.begin() + cursor, json.begin() + cursor + 4);
-    uint16_t u1 = 0;
-    try {
-        u1 = static_cast<uint16_t>(std::stoul(u1Str, nullptr, 16));
-    } catch (...) {
-        throwParseException(ParseException::PARSE_INVALID_UNICODE_HEX);
-    }
-    cursor += 4; // Skip 'u' and 4 hex digits
+    uint16_t u1 = parseHex4();
 
     // Handle surrogate pairs
     if (u1 >= 0xD800 && u1 <= 0xDBFF) {
         // Check if we have enough characters for surrogate pair
-        if (cursor + 6 >= json.size() ||
-            json[cursor] != '\\' ||
-            json[cursor + 1] != 'u') {
+        if (!hasNext() || this->ch() != '\\') {
             throwParseException(ParseException::PARSE_INVALID_UNICODE_SURROGATE);
         }
+        this->skip();
+        if (!hasNext() || this->ch() != 'u') {
+            throwParseException(ParseException::PARSE_INVALID_UNICODE_SURROGATE);
+        }
+        this->skip();
 
         // Parse second UTF-16 code unit
-        const std::string u2Str(json.begin() + cursor + 2, json.begin() + cursor + 6);
-        uint16_t u2 = 0;
-        try {
-            u2 = static_cast<uint16_t>(std::stoul(u2Str, nullptr, 16));
-        } catch (...) {
-            throwParseException(ParseException::PARSE_INVALID_UNICODE_HEX);
-        }
+        uint16_t u2 = parseHex4();
 
         if (u2 < 0xDC00 || u2 > 0xDFFF) {
             throwParseException(ParseException::PARSE_INVALID_UNICODE_SURROGATE);
@@ -305,7 +346,6 @@ void Decoder::decodeUnicodeString() {
 
         // Encode as UTF-8
         this->encodeUTF8(u);
-        cursor += 6;
     } else {
         // Encode single Unicode character
         this->encodeUTF8(u1);
@@ -409,6 +449,9 @@ std::shared_ptr<JsonNode> Decoder::decodeObject() {
         if (this->ch() == ',') {
             this->skip();
             this->trimWhiteSpace();
+            if (!this->hasNext()) {
+                throwParseException(ParseException::PARSE_MISS_KEY);
+            }
         } else if (this->ch() == '}') {
             this->skip();
             node->setObject(std::move(object));

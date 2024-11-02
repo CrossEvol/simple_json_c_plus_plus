@@ -39,7 +39,7 @@ TEST_CASE("Parse numbers", "[parse_number]") {
         EXPECT_NUMBER(1.234e+10, "1.234E+10");
         EXPECT_NUMBER(1.234e-10, "1.234E-10");
         // TODO: here must underflow , but not now
-        // EXPECT_NUMBER(0.0, "1e-10000"); // must underflow
+        EXPECT_NUMBER(0.0, "1e-10000"); // must underflow
     }
 
     SECTION("Edge cases") {

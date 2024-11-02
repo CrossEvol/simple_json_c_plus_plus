@@ -71,6 +71,8 @@ private:
 
     std::shared_ptr<JsonNode> decodeString();
 
+    uint16_t parseHex4();
+
     void decodeUnicodeString();
 
     void encodeUTF8(uint32_t u);
