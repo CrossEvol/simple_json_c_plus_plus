@@ -1,4 +1,3 @@
-- [FetchContent](https://cmake.org/cmake/help/latest/module/FetchContent.html) 
-- [cmake-examples](https://github.com/ttroy50/cmake-examples)
-- [Catch2](https://github.com/catchorg/Catch2) 
-- [fmt](https://github.com/fmtlib/fmt)
+- [Catch2](https://github.com/catchorg/Catch2)
+- [json-tutorials](https://github.com/miloyip/json-tutorial)
+- [json.org](https://www.json.org/json-en.html)
