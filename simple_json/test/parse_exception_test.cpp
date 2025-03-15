@@ -1,5 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
-#include <static/simple_json.h>
+#include <simple_json/simple_json.h>
 
 // Helper macro for testing parse exceptions
 #define TEST_PARSE_EXCEPTION(exception_type, json) \

@@ -3,8 +3,8 @@
 //
 
 #include <iostream>
-#include <static/simple_json.h>
-#include "static/helper.h"
+#include <simple_json/simple_json.h>
+#include "simple_json/helper.h"
 
 std::shared_ptr<JsonNode> Decoder::decode() {
     this->trimWhiteSpace();

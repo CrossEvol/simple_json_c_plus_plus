@@ -1,5 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
-#include <static/simple_json.h>
+#include <simple_json/simple_json.h>
 
 TEST_CASE("should parse null", "[null]") {
     const auto node = Decoder::parse("null");

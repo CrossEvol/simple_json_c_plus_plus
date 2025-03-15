@@ -1,5 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
-#include <static/simple_json.h>
+#include <simple_json/simple_json.h>
 
 // Helper function to test string parsing
 void TEST_STRING(const std::string &expected, const std::string &json) {

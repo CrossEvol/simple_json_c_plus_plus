@@ -1,5 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
-#include <static/simple_json.h>
+#include <simple_json/simple_json.h>
 
 // Helper function to test array parsing
 void TEST_ARRAY(const std::string &json, const std::vector<NodeType> &expectedTypes) {

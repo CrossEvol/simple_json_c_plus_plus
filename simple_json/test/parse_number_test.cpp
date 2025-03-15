@@ -1,7 +1,7 @@
 #include <iostream>
 #include <catch2/catch_test_macros.hpp>
 #include <string>
-#include <static/simple_json.h>
+#include <simple_json/simple_json.h>
 
 #include "catch2/catch_approx.hpp"
 
